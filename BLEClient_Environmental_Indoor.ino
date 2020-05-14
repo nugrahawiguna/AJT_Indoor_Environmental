@@ -19,17 +19,25 @@ static BLEUUID EnvironmentalService_UUID("0000181A-0000-1000-8000-00805F9B34FB")
 static BLEUUID tempCharacteristic_UUID("00002A6E-0000-1000-8000-00805F9B34FB");
 static BLEUUID humidCharacteristic_UUID("00002A6F-0000-1000-8000-00805F9B34FB");
 
+static BLEUUID IndoorService_UUID("00001821-0000-1000-8000-00805F9B34FB");
+static BLEUUID LatitudeCharacteristic_UUID("00002AAE-0000-1000-8000-00805F9B34FB");
+static BLEUUID LongitudeCharacteristic_UUID("00002AAF-0000-1000-8000-00805F9B34FB");
+
 static BLEAddress* pServerAddress;
 static boolean doConnect = false;
 static boolean connected = false;
 static boolean doScan = false;
 static BLERemoteCharacteristic* pRemoteCharacteristic;
 static BLERemoteCharacteristic* pRemoteCharacteristic2;
+static BLERemoteCharacteristic* pRemoteCharacteristic3;
+static BLERemoteCharacteristic* pRemoteCharacteristic4;
 static BLEAdvertisedDevice* myDevice;
 BLEScan *pBLEScan;
 
 static void notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic,uint8_t* pData,size_t length, bool isNotify) {}
 static void notifyCallback2(BLERemoteCharacteristic* pBLERemoteCharacteristic2,uint8_t* pData,size_t length, bool isNotify) {}
+static void notifyCallback3(BLERemoteCharacteristic* pBLERemoteCharacteristic3,uint8_t* pData,size_t length, bool isNotify) {}
+static void notifyCallback4(BLERemoteCharacteristic* pBLERemoteCharacteristic4,uint8_t* pData,size_t length, bool isNotify) {}
 
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient* pclient) {
@@ -51,9 +59,11 @@ bool connectToServer() {
     Serial.println(" - Connected to server");
 
     BLERemoteService* pRemoteService = pClient->getService(EnvironmentalService_UUID);
-    if (pRemoteService == nullptr) {
+    BLERemoteService* pRemoteService2 = pClient->getService(IndoorService_UUID);
+    if (pRemoteService == nullptr && pRemoteService2 == nullptr) {
       Serial.print("Failed to find our service UUID: ");
       Serial.println(EnvironmentalService_UUID.toString().c_str());
+      Serial.println(IndoorService_UUID.toString().c_str());
       pClient->disconnect();
       return false;
     }
@@ -61,25 +71,38 @@ bool connectToServer() {
 
     pRemoteCharacteristic = pRemoteService->getCharacteristic(tempCharacteristic_UUID);
     pRemoteCharacteristic2 = pRemoteService->getCharacteristic(humidCharacteristic_UUID);
-    if (pRemoteCharacteristic == nullptr && pRemoteCharacteristic2 == nullptr) {
+    pRemoteCharacteristic3 = pRemoteService2->getCharacteristic(LatitudeCharacteristic_UUID);
+    pRemoteCharacteristic4 = pRemoteService2->getCharacteristic(LongitudeCharacteristic_UUID);
+    if (pRemoteCharacteristic == nullptr && pRemoteCharacteristic2 == nullptr && pRemoteCharacteristic3 == nullptr && pRemoteCharacteristic4 == nullptr) {
       Serial.print("Failed to find our characteristic UUID: ");
       Serial.println(tempCharacteristic_UUID.toString().c_str());
+      Serial.println(humidCharacteristic_UUID.toString().c_str());
+      Serial.println(LatitudeCharacteristic_UUID.toString().c_str());
+      Serial.println(LongitudeCharacteristic_UUID.toString().c_str());
       pClient->disconnect();
       return false;
     }
     Serial.println(" - Found our characteristic");
 
-    if(pRemoteCharacteristic->canRead() && pRemoteCharacteristic2->canRead()) {
+    if(pRemoteCharacteristic->canRead() && pRemoteCharacteristic2->canRead()&& pRemoteCharacteristic3->canRead()&& pRemoteCharacteristic4->canRead()) {
       std::string value = pRemoteCharacteristic->readValue();
       Serial.print("The characteristic value was: ");
       Serial.println(value.c_str());
       std::string value2 = pRemoteCharacteristic2->readValue();
       Serial.print("The characteristic value was: ");
       Serial.println(value2.c_str());
+      std::string value3 = pRemoteCharacteristic3->readValue();
+      Serial.print("The characteristic value was: ");
+      Serial.println(value3.c_str());
+      std::string value4 = pRemoteCharacteristic4->readValue();
+      Serial.print("The characteristic value was: ");
+      Serial.println(value4.c_str());
     }
 
     pRemoteCharacteristic->registerForNotify(notifyCallback);
     pRemoteCharacteristic2->registerForNotify(notifyCallback2);
+    pRemoteCharacteristic3->registerForNotify(notifyCallback3);
+    pRemoteCharacteristic4->registerForNotify(notifyCallback4);
 
     connected = true;
 }
@@ -89,7 +112,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     Serial.print("BLE Advertised Device found: ");
     Serial.println(advertisedDevice.toString().c_str());
 
-    if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(EnvironmentalService_UUID)) {
+    if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(EnvironmentalService_UUID) && advertisedDevice.isAdvertisingService(IndoorService_UUID)) {
 
       BLEDevice::getScan()->stop();
       myDevice = new BLEAdvertisedDevice(advertisedDevice);
@@ -153,18 +176,39 @@ void loop() {
   if (connected) {
     Serial.print("Hasil DHT11 : ");
     std::string newValue = pRemoteCharacteristic->readValue();
-    std::string newValue2 = pRemoteCharacteristic2->readValue(); 
+    std::string newValue2 = pRemoteCharacteristic2->readValue();
+    std::string newValue3 = pRemoteCharacteristic3->readValue();
+    std::string newValue4 = pRemoteCharacteristic4->readValue();  
+    
     String dataSensor = newValue.c_str();
     String dataSensor2 = newValue2.c_str();
+    String dataSensor3 = newValue3.c_str();
+    String dataSensor4 = newValue4.c_str();
+    
     int suhu = dataSensor.substring(0,5).toInt();
     int kelembaban = dataSensor2.substring(0,5).toInt();
+    String latStr = dataSensor3.substring(0,5);
+    String longiStr = dataSensor4.substring (0,5);
+    float latitude = latStr.toFloat();
+    float longitude = longiStr.toFloat(); 
     
     tb.sendTelemetryFloat("temperature", suhu);
     tb.sendTelemetryFloat("humidity", kelembaban);
+    tb.sendTelemetryFloat("latitude", latitude);
+    tb.sendTelemetryFloat("longitude", longitude);
     
-    Serial.print(suhu); 
-    Serial.print(" | ");
-    Serial.println(kelembaban);
+    Serial.print("Suhu : "); 
+    Serial.print(suhu);
+    Serial.println();
+    Serial.print("Kelembaban : "); 
+    Serial.print(kelembaban);
+    Serial.println();
+    Serial.print("Latitude :");
+    Serial.print(latitude);
+    Serial.println();
+    Serial.print("Longitude :");
+    Serial.print(longitude);
+    Serial.println();
 
   }else if(doScan){
     BLEDevice::getScan()->start(0);  
